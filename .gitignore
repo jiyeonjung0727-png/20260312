@@ -1,0 +1,8 @@
+node_modules/
+data/
+uploads/
+.env
+.env.local
+*.log
+domino_inventory_training.xlsx
+sales_Data.csv

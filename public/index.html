@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>도미노피자 재고·발주 관리 시스템</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 사이드바 -->
+  <aside class="sidebar">
+    <div class="logo">
+      <span class="logo-icon">🍕</span>
+      <div>
+        <div class="logo-title">재고·발주</div>
+        <div class="logo-sub">도미노피자 관리 시스템</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-link active" data-page="dashboard" href="#">📊 대시보드</a>
+      <a class="nav-link" data-page="inventory" href="#">✏️ 재고 입력</a>
+      <a class="nav-link" data-page="order" href="#">📧 발주서 발송</a>
+    </nav>
+    <button class="logout-btn" onclick="logout()">로그아웃</button>
+  </aside>
+
+  <!-- 메인 콘텐츠 -->
+  <main class="main">
+
+    <!-- ── 대시보드 ─────────────────────────────────── -->
+    <section id="page-dashboard" class="page active">
+      <div class="page-header">
+        <h1>대시보드</h1>
+        <button class="btn btn-ghost btn-sm" onclick="refreshAll()">↺ 새로고침</button>
+      </div>
+
+      <div class="kpi-grid" id="kpiGrid"></div>
+
+      <div class="card" id="lowStockCard">
+        <div class="card-header">
+          <h2>⚠️ 발주 필요 품목</h2>
+          <button class="btn btn-primary btn-sm" onclick="goPage('order')">발주서 발송하기 →</button>
+        </div>
+        <div class="table-wrap">
+          <table id="lowTable">
+            <thead>
+              <tr>
+                <th>품목코드</th><th>재료명</th><th>규격</th><th>거래처</th>
+                <th>현재재고</th><th>안전재고</th><th>부족량</th><th>발주권장</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="empty-msg" id="lowEmpty" style="display:none">✅ 발주가 필요한 품목이 없습니다.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2>🏭 거래처별 발주 현황</h2></div>
+        <div id="supplierSummary" class="supplier-grid"></div>
+      </div>
+    </section>
+
+    <!-- ── 재고 입력 ─────────────────────────────────── -->
+    <section id="page-inventory" class="page">
+      <div class="page-header">
+        <h1>재고 입력</h1>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="hint" style="margin:0;">셀을 클릭해 직접 수정하세요</span>
+          <button class="btn btn-primary" onclick="addNewRow()">+ 새 품목 추가</button>
+        </div>
+      </div>
+
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="재료명 또는 거래처 검색..." oninput="renderInventoryTable()">
+        <select id="statusFilter" onchange="renderInventoryTable()">
+          <option value="">전체 상태</option>
+          <option value="발주 필요">발주 필요</option>
+          <option value="정상">정상</option>
+        </select>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="table-wrap">
+          <table id="invTable" class="inv-table">
+            <thead>
+              <tr>
+                <th style="width:80px;">코드</th>
+                <th style="min-width:120px;">재료명</th>
+                <th style="width:90px;">규격</th>
+                <th style="width:60px;">단위</th>
+                <th style="width:90px;">현재재고 ✏</th>
+                <th style="width:90px;">안전재고 ✏</th>
+                <th style="width:80px;">MOQ ✏</th>
+                <th style="width:80px;">발주권장</th>
+                <th style="min-width:120px;">거래처 ✏</th>
+                <th style="width:70px;">상태</th>
+                <th style="width:80px;"></th>
+              </tr>
+            </thead>
+            <tbody id="invTbody"></tbody>
+          </table>
+        </div>
+        <div id="invEmpty" class="empty-msg" style="display:none;">
+          등록된 품목이 없습니다. <strong>새 품목 추가</strong>를 클릭해 시작하세요.
+        </div>
+      </div>
+
+      <div id="invSaveMsg" class="alert" style="display:none; margin-top:8px;"></div>
+    </section>
+
+    <!-- ── 발주서 발송 ─────────────────────────────────── -->
+    <section id="page-order" class="page">
+      <div class="page-header"><h1>발주서 이메일 발송</h1></div>
+
+      <div class="card" style="max-width:520px;">
+        <h2 style="margin:0 0 4px;">Gmail 계정 설정</h2>
+        <p class="hint">Gmail 앱 비밀번호가 필요합니다. <a href="https://myaccount.google.com/apppasswords" target="_blank">앱 비밀번호 만들기 →</a></p>
+        <div class="form-grid">
+          <label>Gmail 계정</label>
+          <input type="email" id="emailUser" placeholder="your@gmail.com">
+          <label>앱 비밀번호</label>
+          <input type="password" id="emailPass" placeholder="16자리 앱 비밀번호">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>발주 품목 선택</h2>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="selectAllOrder(true)">전체 선택</button>
+            <button class="btn btn-ghost btn-sm" onclick="selectAllOrder(false)">전체 해제</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="orderTable">
+            <thead>
+              <tr>
+                <th style="width:40px;"><input type="checkbox" id="chkAll" onchange="selectAllOrder(this.checked)"></th>
+                <th>재료명</th><th>규격</th><th>현재재고</th><th>안전재고</th><th>발주권장</th><th>거래처</th>
+              </tr>
+            </thead>
+            <tbody id="orderTbody"></tbody>
+          </table>
+        </div>
+        <p class="empty-msg" id="orderEmpty" style="display:none">발주가 필요한 품목이 없습니다.<br>재고 입력 페이지에서 현재 재고를 입력해 주세요.</p>
+      </div>
+
+      <div id="orderResultBox" class="alert" style="display:none;"></div>
+
+      <button class="btn btn-primary btn-lg" id="sendOrderBtn" onclick="sendOrder()">
+        <span id="sendBtnIcon">📧</span>
+        <span id="sendBtnText">발주서 이메일 발송 (수신: jiyeon.jung0727@gmail.com)</span>
+      </button>
+    </section>
+
+  </main>
+
+  <!-- 토스트 알림 -->
+  <div id="toast" class="toast" style="display:none;">
+    <span id="toastIcon"></span>
+    <div>
+      <div id="toastTitle" class="toast-title"></div>
+      <div id="toastBody"  class="toast-body"></div>
+    </div>
+    <button class="toast-close" onclick="closeToast()">✕</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
