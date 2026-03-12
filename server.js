@@ -95,7 +95,6 @@ async function saveInventory(data) {
 // ── 미들웨어 ───────────────────────────────────────────────────────
 app.use(express.json());
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
 
 // ── 인증 ──────────────────────────────────────────────────────────
 function makeToken(pw) {
@@ -105,15 +104,20 @@ function isAuth(req) {
   return req.cookies[COOKIE_NAME] === makeToken(TEAM_PASSWORD);
 }
 function authGuard(req, res, next) {
-  const pub = ['/login', '/api/login'];
-  if (pub.includes(req.path) || /\.(css|js|ico|png|woff2?)$/.test(req.path)) return next();
+  // CSS/JS/이미지 등 정적 에셋은 인증 없이 통과
+  if (/\.(css|js|ico|png|woff2?|map|svg)$/.test(req.path)) return next();
+  // 로그인 관련 경로는 공개
+  if (req.path === '/login' || req.path === '/login.html' || req.path === '/api/login') return next();
+  // 인증 확인
   if (!isAuth(req)) {
     if (req.path.startsWith('/api/')) return res.status(401).json({ error: '로그인이 필요합니다.' });
     return res.redirect('/login');
   }
   next();
 }
+// 인증 가드를 static보다 먼저 실행 (index.html도 보호)
 app.use(authGuard);
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ── 로그인 / 로그아웃 ─────────────────────────────────────────────
 app.get('/login', (req, res) => {
@@ -122,15 +126,18 @@ app.get('/login', (req, res) => {
 });
 
 app.post('/api/login', (req, res) => {
-  if (req.body.password === TEAM_PASSWORD) {
+  const entered = (req.body.password || '').trim();
+  if (entered === TEAM_PASSWORD) {
     res.cookie(COOKIE_NAME, makeToken(TEAM_PASSWORD), {
       httpOnly: true,
-      secure:   process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure:   req.secure || req.headers['x-forwarded-proto'] === 'https',
+      sameSite: 'lax',
       maxAge:   COOKIE_MAX_AGE,
+      path:     '/',
     });
     return res.json({ ok: true });
   }
+  console.log(`[login fail] entered="${entered}" expected="${TEAM_PASSWORD}"`);
   res.status(401).json({ error: '비밀번호가 틀렸습니다.' });
 });
 
