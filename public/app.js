@@ -395,19 +395,5 @@ function closeToast() {
   setTimeout(() => { toast.style.display = 'none'; }, 400);
 }
 
-// ── 로그아웃 ──────────────────────────────────────────────────────
-async function logout() {
-  await fetch('/api/logout', { method: 'POST' });
-  window.location.href = '/login';
-}
-
-// ── 401 인터셉터 ──────────────────────────────────────────────────
-const _origFetch = window.fetch.bind(window);
-window.fetch = async (...args) => {
-  const res = await _origFetch(...args);
-  if (res.status === 401) { window.location.href = '/login'; }
-  return res;
-};
-
 // ── 초기화 ────────────────────────────────────────────────────────
 fetchInventory().then(loadDashboard);

@@ -1,23 +1,16 @@
 'use strict';
 
-const express      = require('express');
-const cookieParser = require('cookie-parser');
-const crypto       = require('crypto');
-const nodemailer   = require('nodemailer');
-const path         = require('path');
+const express    = require('express');
+const nodemailer = require('nodemailer');
+const path       = require('path');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// ── 환경 설정 ──────────────────────────────────────────────────────
-const TEAM_PASSWORD  = process.env.TEAM_PASSWORD || 'domino2024';
-const AUTH_SECRET    = process.env.AUTH_SECRET   || 'inv-secret-2024';
 const ORDER_TO_EMAIL = 'jiyeon.jung0727@gmail.com';
 const STORE_NAME     = '도미노피자';
-const COOKIE_NAME    = 'inv_auth';
-const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7일
 
-// ── 초기 재고 데이터 (domino_inventory_training.xlsx 기준) ──────────
+// ── 초기 재고 데이터 ───────────────────────────────────────────────
 function calcItem(item) {
   const cur      = Number(item.currentStock) || 0;
   const safe     = Number(item.safetyStock)  || 0;
@@ -47,8 +40,7 @@ const INITIAL_SUPPLIERS = [
   { name:'토핑솔루션',         manager:'정민아', email:'liszzm@naver.com', leadDays:2, category:'올리브/콘' },
 ];
 
-// ── 스토리지 (Vercel KV 또는 메모리 fallback) ─────────────────────
-// Upstash Redis 또는 메모리 fallback
+// ── 스토리지 (Upstash Redis 또는 메모리 fallback) ──────────────────
 let redisClient = null;
 try {
   if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
@@ -71,14 +63,12 @@ async function storageGet(key) {
   }
   return mem[key] ?? null;
 }
-
 async function storageSet(key, val) {
   if (redisClient) {
     try { await redisClient.set(key, val); } catch (_) {}
   }
   mem[key] = val;
 }
-
 async function loadInventory() {
   const data = await storageGet('inventory');
   if (!data) {
@@ -87,64 +77,13 @@ async function loadInventory() {
   }
   return data.map(calcItem);
 }
-
 async function saveInventory(data) {
   await storageSet('inventory', data);
 }
 
 // ── 미들웨어 ───────────────────────────────────────────────────────
 app.use(express.json());
-app.use(cookieParser());
-
-// ── 인증 ──────────────────────────────────────────────────────────
-function makeToken(pw) {
-  return crypto.createHmac('sha256', AUTH_SECRET).update(pw).digest('hex');
-}
-function isAuth(req) {
-  return req.cookies[COOKIE_NAME] === makeToken(TEAM_PASSWORD);
-}
-function authGuard(req, res, next) {
-  // CSS/JS/이미지 등 정적 에셋은 인증 없이 통과
-  if (/\.(css|js|ico|png|woff2?|map|svg)$/.test(req.path)) return next();
-  // 로그인 관련 경로는 공개
-  if (req.path === '/login' || req.path === '/login.html' || req.path === '/api/login') return next();
-  // 인증 확인
-  if (!isAuth(req)) {
-    if (req.path.startsWith('/api/')) return res.status(401).json({ error: '로그인이 필요합니다.' });
-    return res.redirect('/login');
-  }
-  next();
-}
-// 인증 가드를 static보다 먼저 실행 (index.html도 보호)
-app.use(authGuard);
 app.use(express.static(path.join(__dirname, 'public')));
-
-// ── 로그인 / 로그아웃 ─────────────────────────────────────────────
-app.get('/login', (req, res) => {
-  if (isAuth(req)) return res.redirect('/');
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-app.post('/api/login', (req, res) => {
-  const entered = (req.body.password || '').trim();
-  if (entered === TEAM_PASSWORD) {
-    res.cookie(COOKIE_NAME, makeToken(TEAM_PASSWORD), {
-      httpOnly: true,
-      secure:   req.secure || req.headers['x-forwarded-proto'] === 'https',
-      sameSite: 'lax',
-      maxAge:   COOKIE_MAX_AGE,
-      path:     '/',
-    });
-    return res.json({ ok: true });
-  }
-  console.log(`[login fail] entered="${entered}" expected="${TEAM_PASSWORD}"`);
-  res.status(401).json({ error: '비밀번호가 틀렸습니다.' });
-});
-
-app.post('/api/logout', (req, res) => {
-  res.clearCookie(COOKIE_NAME);
-  res.json({ ok: true });
-});
 
 // ── 재고 API ──────────────────────────────────────────────────────
 app.get('/api/inventory', async (_, res) => {
@@ -285,8 +224,7 @@ app.post('/api/send-order', async (req, res) => {
 // ── 서버 시작 ─────────────────────────────────────────────────────
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`\n🍕 재고·발주 관리 시스템 → http://localhost:${PORT}`);
-    console.log(`   기본 비밀번호: ${TEAM_PASSWORD}\n`);
+    console.log(`\n🍕 재고·발주 관리 시스템 → http://localhost:${PORT}\n`);
   });
 }
 
